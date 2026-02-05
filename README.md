@@ -270,7 +270,7 @@ In financial fraud detection, false positives are expensive — every legitimate
 
 - **Noise Simulation**: Adding a realistic noise model (depolarizing, amplitude damping) via `cirq.DensityMatrixSimulator` to evaluate how the autoencoder performs on actual NISQ hardware, where gate errors and decoherence degrade fidelity.
 
-- **Real-World Data**: Validating on industry-standard benchmarks (e.g., [Kaggle Credit Card Fraud](https://www.kaggle.com/mlg-ulb/creditcardfraud)) to measure performance beyond synthetic distributions.
+- ✅ **Real-World Data**: Validated on the [Kaggle Credit Card Fraud](https://www.kaggle.com/mlg-ulb/creditcardfraud) benchmark (284,807 transactions). Achieved **AUROC 0.86** and **F1 0.79** with 82% fraud recall using only 4 qubits and 16 parameters. See [Results](#results) above.
 
 - **Hybrid Ensemble**: Combining the quantum anomaly score with a classical model (e.g., Isolation Forest) in an ensemble to reduce false positive rates while maintaining high recall.
 
