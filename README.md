@@ -177,7 +177,7 @@ jupyter notebook notebooks/demo.ipynb
 
 ### Real-World Data — Kaggle Credit Card Fraud
 
-Trained on **800 normal** transactions, evaluated on **400 test** samples (200 normal + 200 fraud) from the [Kaggle Credit Card Fraud](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) dataset. Features auto-selected by class separation: `Time`, `Amount`, `V3`, `V14`.
+Trained on **800 normal** transactions, evaluated on **400 test** samples (200 normal + 200 fraud) from the [Kaggle Credit Card Fraud](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) dataset. Features auto-selected by class separation: `Time`, `Amount`, `V3`, `V14`
 
 | Metric | Value |
 |---|---|
