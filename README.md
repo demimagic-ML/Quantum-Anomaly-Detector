@@ -271,6 +271,67 @@ Trained on **160 normal** transactions, evaluated on **90 test** samples (40 nor
 
 > The enhanced model achieves **AUROC 0.90** and **F1 0.91** — a significant improvement over v1 across all metrics. Fraud recall climbed to **94%** while maintaining **89% precision**, reducing both missed fraud and false alarms. The gains come primarily from data re-uploading and better feature selection, with only a modest increase in parameter count.
 
+### Unseen Data — Generalization Test
+
+The ultimate validation: score **200 transactions the model has never seen** — sampled from the remaining ~284,500 rows in the Kaggle dataset after excluding all training data. Zero overlap is guaranteed via pandas index exclusion (saved training indices are dropped before sampling).
+
+```bash
+# Train first (saves model + scaler + training indices)
+python main.py --mode train --data-source kaggle --n-normal 200 --n-fraud 50 --epochs 20
+
+# Score 100 normal + 100 fraud completely unseen transactions
+python main.py --mode predict --predict-n-normal 100 --predict-n-fraud 100
+```
+
+| Metric | Train/Test Split | **Unseen (200 samples)** |
+|---|---|---|
+| **AUROC** | 0.8950 | **0.8801** |
+| **F1 Score** | 0.9126 | **0.8738** |
+| **Precision (Fraud)** | 0.89 | **0.85** |
+| **Recall (Fraud)** | 0.94 | **0.90** |
+| **Accuracy** | 0.90 | **0.87** |
+| **Mean Score (Normal)** | 0.6277 | **0.6187** |
+| **Mean Score (Fraud)** | 0.9619 | **0.9613** |
+
+```
+              precision    recall  f1-score   support
+
+      Normal       0.89      0.84      0.87       100
+       Fraud       0.85      0.90      0.87       100
+
+    accuracy                           0.87       200
+```
+
+> **AUROC 0.88 on completely unseen data** — only a 1.5% drop from the train/test split, confirming the model generalizes well to new transactions it was never exposed to during training.
+
+#### Reconstruction Fidelity — Acid Test
+
+The true quantum validation: discard the trash qubits, replace them with fresh |0⟩ states, apply the inverse ansatz U†, and measure how closely the output matches the original input.
+
+| Metric | Train/Test | Unseen |
+|---|---|---|
+| **Normal Fidelity** | 0.3177 | **0.3224** |
+| **Fraud Fidelity** | 0.1144 | **0.1131** |
+| **Fidelity Gap** | 0.2033 | **0.2093** |
+
+> Normal transactions reconstruct **~3× better** than fraud across both splits. The consistent fidelity gap confirms the quantum autoencoder has genuinely learned to compress normal transaction patterns into the latent register, while fraudulent patterns fail the compression and cannot be recovered.
+
+<p align="center">
+  <img src="docs/unseen_score_distribution.png" alt="Unseen Score Distribution" width="700"/>
+</p>
+<p align="center"><em>Anomaly score distribution on unseen data — fraud scores cluster near 1.0</em></p>
+
+<p align="center">
+  <img src="docs/unseen_roc_curve.png" alt="Unseen ROC Curve" width="400"/>
+  <img src="docs/unseen_confusion_matrix.png" alt="Unseen Confusion Matrix" width="400"/>
+</p>
+<p align="center"><em>Left: ROC curve on unseen data (AUROC = 0.88) · Right: Confusion matrix</em></p>
+
+<p align="center">
+  <img src="docs/unseen_reconstruction_fidelity.png" alt="Reconstruction Fidelity" width="700"/>
+</p>
+<p align="center"><em>Reconstruction fidelity — normal transactions reconstruct ~3× better than fraud (the quantum acid test)</em></p>
+
 ### Synthetic Data
 
 Synthetic data mode is available for quick testing and reproducibility without Kaggle credentials:

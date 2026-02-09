@@ -152,6 +152,32 @@ def evaluate(model: QuantumAutoencoder, data_bundle: dict, results_dir: str = "r
 
     plt.close("all")
 
+    print("\n" + "=" * 60)
+    print("RECONSTRUCTION FIDELITY TEST")
+    print("=" * 60)
+    print("  Protocol: encode → discard trash → reset |0⟩ → apply U† → compare")
+
+    recon_fidelities = model.compute_reconstruction_fidelity(q_test)
+
+    normal_fid = recon_fidelities[y_test == 0]
+    fraud_fid = recon_fidelities[y_test == 1]
+
+    print(f"\n  Normal  — mean F: {normal_fid.mean():.4f}, std: {normal_fid.std():.4f}")
+    print(f"  Fraud   — mean F: {fraud_fid.mean():.4f}, std: {fraud_fid.std():.4f}")
+    print(f"  Fidelity gap: {normal_fid.mean() - fraud_fid.mean():.4f}")
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.hist(normal_fid, bins=40, alpha=0.7, label="Normal", color="#2196F3", density=True)
+    ax.hist(fraud_fid, bins=40, alpha=0.7, label="Fraud", color="#F44336", density=True)
+    ax.set_xlabel("Reconstruction Fidelity F(ψ, ψ')")
+    ax.set_ylabel("Density")
+    ax.set_title("Quantum Reconstruction Fidelity — Acid Test")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(os.path.join(results_dir, "reconstruction_fidelity.png"), dpi=150)
+    print(f"  Saved: {results_dir}/reconstruction_fidelity.png")
+    plt.close("all")
+
     import pandas as pd
     metrics_df = pd.DataFrame([{
         "auroc": auroc,
@@ -159,6 +185,9 @@ def evaluate(model: QuantumAutoencoder, data_bundle: dict, results_dir: str = "r
         "threshold": threshold,
         "mean_score_normal": normal_scores.mean(),
         "mean_score_fraud": fraud_scores.mean(),
+        "mean_recon_fidelity_normal": float(normal_fid.mean()),
+        "mean_recon_fidelity_fraud": float(fraud_fid.mean()),
+        "fidelity_gap": float(normal_fid.mean() - fraud_fid.mean()),
         "n_test_normal": int((y_test == 0).sum()),
         "n_test_fraud": int((y_test == 1).sum()),
     }])
@@ -172,4 +201,6 @@ def evaluate(model: QuantumAutoencoder, data_bundle: dict, results_dir: str = "r
         "threshold": threshold,
         "scores": scores,
         "predictions": predictions,
+        "recon_fidelity_normal": float(normal_fid.mean()),
+        "recon_fidelity_fraud": float(fraud_fid.mean()),
     }

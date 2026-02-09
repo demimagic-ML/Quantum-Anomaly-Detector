@@ -76,7 +76,7 @@ def train(
     if data_source == "kaggle":
         print("STEP 1: Loading Kaggle Credit Card Fraud dataset")
         print("=" * 60)
-        X, labels, selected_features = load_creditcard_data(
+        X, labels, selected_features, used_indices = load_creditcard_data(
             csv_path=csv_path,
             n_features=len(ALL_QUBITS),
             max_normal=n_normal,
@@ -136,6 +136,29 @@ def train(
     params_path = os.path.join(results_dir, "model_params.npy")
     model.save_params(params_path)
     print(f"\nModel parameters saved to {params_path}")
+
+    import pickle
+    scaler_path = os.path.join(results_dir, "scaler.pkl")
+    with open(scaler_path, "wb") as f:
+        pickle.dump(scaler, f)
+
+    meta = {
+        "data_source": data_source,
+        "depth": depth,
+        "seed": seed,
+        "n_normal": n_normal,
+        "n_fraud": n_fraud,
+    }
+    if data_source == "kaggle":
+        meta["selected_features"] = selected_features
+        indices_path = os.path.join(results_dir, "train_indices.npy")
+        np.save(indices_path, used_indices)
+        print(f"  Training indices saved to {indices_path} ({len(used_indices)} rows)")
+    meta_path = os.path.join(results_dir, "train_meta.pkl")
+    with open(meta_path, "wb") as f:
+        pickle.dump(meta, f)
+    print(f"  Scaler saved to {scaler_path}")
+    print(f"  Training metadata saved to {meta_path}")
 
     data_bundle = {
         "q_test": q_test,

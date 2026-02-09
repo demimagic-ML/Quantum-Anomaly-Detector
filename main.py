@@ -17,6 +17,7 @@ import numpy as np
 
 from src.train import train
 from src.evaluate import evaluate
+from src.predict import predict_unseen
 from src.model.quantum_autoencoder import QuantumAutoencoder, ALL_QUBITS
 from src.data.generate_data import create_dataset
 from src.data.preprocessing import scale_features, prepare_quantum_data, split_data
@@ -29,9 +30,9 @@ def parse_args():
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["train", "evaluate", "full"],
+        choices=["train", "evaluate", "full", "predict"],
         default="full",
-        help="Run mode: train, evaluate, or full (train + evaluate).",
+        help="Run mode: train, evaluate, full (train + evaluate), or predict (unseen data).",
     )
     parser.add_argument("--epochs", type=int, default=50, help="Training epochs.")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size.")
@@ -65,26 +66,79 @@ def parse_args():
         default="data/creditcard.csv",
         help="Path to Kaggle creditcard.csv (only used with --data-source kaggle).",
     )
+    parser.add_argument(
+        "--predict-n-normal",
+        type=int,
+        default=1000,
+        help="Number of unseen normal transactions to score (predict mode).",
+    )
+    parser.add_argument(
+        "--predict-n-fraud",
+        type=int,
+        default=200,
+        help="Number of unseen fraud transactions to score (predict mode).",
+    )
+    parser.add_argument(
+        "--predict-seed",
+        type=int,
+        default=999,
+        help="Random seed for sampling unseen data (predict mode).",
+    )
     return parser.parse_args()
 
 
 def run_evaluate_only(args):
+    import pickle
+
     if not os.path.exists(args.checkpoint):
         print(f"ERROR: Checkpoint not found at {args.checkpoint}")
         print("Run with --mode train first.")
         sys.exit(1)
 
-    model = QuantumAutoencoder(depth=args.depth)
-    model.load_params(args.checkpoint)
+    meta_path = os.path.join(args.results_dir, "train_meta.pkl")
+    scaler_path = os.path.join(args.results_dir, "scaler.pkl")
 
-    df, labels = create_dataset(
-        n_normal=args.n_normal, n_fraud=args.n_fraud, seed=args.seed
-    )
-    X = df.drop(columns=["label"]).values
-    X_train, X_test, y_train, y_test = split_data(X, labels, seed=args.seed)
-    X_train_scaled, scaler = scale_features(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    X_test_scaled = np.clip(X_test_scaled, 0.0, np.pi)
+    # Load saved training metadata if available
+    if os.path.exists(meta_path) and os.path.exists(scaler_path):
+        with open(meta_path, "rb") as f:
+            meta = pickle.load(f)
+        with open(scaler_path, "rb") as f:
+            scaler = pickle.load(f)
+
+        model = QuantumAutoencoder(depth=meta["depth"])
+        model.load_params(args.checkpoint)
+
+        if meta.get("data_source") == "kaggle":
+            from src.data.load_kaggle import load_creditcard_data
+            X, labels, _, _ = load_creditcard_data(
+                csv_path=args.csv_path,
+                n_features=len(ALL_QUBITS),
+                max_normal=meta["n_normal"],
+                max_fraud=meta["n_fraud"],
+                seed=meta["seed"],
+            )
+        else:
+            df, labels = create_dataset(
+                n_normal=meta["n_normal"], n_fraud=meta["n_fraud"], seed=meta["seed"]
+            )
+            X = df.drop(columns=["label"]).values
+
+        X_train, X_test, y_train, y_test = split_data(X, labels, seed=meta["seed"])
+        X_test_scaled = scaler.transform(X_test)
+        X_test_scaled = np.clip(X_test_scaled, 0.0, np.pi)
+    else:
+        model = QuantumAutoencoder(depth=args.depth)
+        model.load_params(args.checkpoint)
+
+        df, labels = create_dataset(
+            n_normal=args.n_normal, n_fraud=args.n_fraud, seed=args.seed
+        )
+        X = df.drop(columns=["label"]).values
+        X_train, X_test, y_train, y_test = split_data(X, labels, seed=args.seed)
+        X_train_scaled, scaler = scale_features(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        X_test_scaled = np.clip(X_test_scaled, 0.0, np.pi)
+
     q_test = prepare_quantum_data(X_test_scaled, ALL_QUBITS)
 
     data_bundle = {"q_test": q_test, "y_test": y_test, "history": None}
@@ -118,6 +172,16 @@ def main():
 
     elif args.mode == "evaluate":
         run_evaluate_only(args)
+
+    elif args.mode == "predict":
+        predict_unseen(
+            checkpoint=args.checkpoint,
+            results_dir=args.results_dir,
+            csv_path=args.csv_path,
+            predict_n_normal=args.predict_n_normal,
+            predict_n_fraud=args.predict_n_fraud,
+            predict_seed=args.predict_seed,
+        )
 
     elif args.mode == "full":
         model, history, data_bundle = train(

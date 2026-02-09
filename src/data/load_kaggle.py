@@ -23,7 +23,7 @@ def load_creditcard_data(
     max_normal: int = None,
     max_fraud: int = None,
     seed: int = 42,
-) -> Tuple[np.ndarray, np.ndarray, list]:
+) -> Tuple[np.ndarray, np.ndarray, list, np.ndarray]:
     """
     Load and prepare the Kaggle credit card fraud dataset.
 
@@ -97,4 +97,4 @@ def load_creditcard_data(
     print(f"  Dataset: {len(labels)} samples "
           f"(normal: {(labels == 0).sum()}, fraud: {(labels == 1).sum()})")
 
-    return X, labels, top_features
+    return X, labels, top_features, selected_idx

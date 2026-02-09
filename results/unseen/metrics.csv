@@ -1,0 +1,2 @@
+auroc,f1_score,threshold,mean_score_normal,mean_score_fraud,mean_recon_fidelity_normal,mean_recon_fidelity_fraud,fidelity_gap,n_test_normal,n_test_fraud
+0.8801,0.8737864077669903,0.8767336683417086,0.6186736192181707,0.9612719590961933,0.32238070818654585,0.11310855510751316,0.20927215307903269,100,100

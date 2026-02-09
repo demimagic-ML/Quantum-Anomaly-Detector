@@ -348,7 +348,6 @@ class QuantumAutoencoder:
         features_list = self._extract_features(prep_circuits)
 
         for epoch in range(epochs):
-            # Shuffle
             idx = np.random.permutation(n_samples)
 
             epoch_losses = []
@@ -374,7 +373,6 @@ class QuantumAutoencoder:
             if verbose:
                 print(f"  Epoch {epoch + 1:3d}/{epochs} — loss: {epoch_loss:.6f}")
 
-            # Early stopping
             if epoch_loss < best_loss - 1e-6:
                 best_loss = epoch_loss
                 best_params = self.params.copy()
@@ -509,6 +507,95 @@ class QuantumAutoencoder:
         mean_z = np.mean(expectations, axis=-1)
         scores = 1.0 - mean_z
         return np.clip(scores, 0.0, 1.0)
+
+    def compute_reconstruction_fidelity(
+        self, prep_circuits: List[cirq.Circuit]
+    ) -> np.ndarray:
+        """
+        Full quantum reconstruction test (the "acid test").
+
+        For each input state |ψ⟩:
+            1. Apply ansatz U to get U|ψ⟩
+            2. Trace out trash qubits
+            3. Reset trash qubits to |0⟩
+            4. Apply inverse ansatz U†
+            5. Compute fidelity F = |⟨ψ|ψ_reconstructed⟩|²
+
+        Normal transactions should reconstruct well (F ≈ 1).
+        Fraudulent transactions should reconstruct poorly (F ≪ 1).
+
+        Parameters
+        ----------
+        prep_circuits : list of cirq.Circuit
+            State-preparation circuits.
+
+        Returns
+        -------
+        np.ndarray
+            Reconstruction fidelities in [0, 1], shape (n_samples,).
+        """
+        features_list = self._extract_features(prep_circuits)
+        fidelities = np.zeros(len(prep_circuits))
+
+        n_qubits = NUM_DATA_QUBITS
+        trash_indices = [ALL_QUBITS.index(q) for q in TRASH_QUBITS]
+        latent_indices = [ALL_QUBITS.index(q) for q in LATENT_QUBITS]
+
+        for i, prep in enumerate(prep_circuits):
+            feat = features_list[i]
+
+            n_layers = self.n_data_params // NUM_DATA_QUBITS
+            tiled = np.tile(feat, n_layers)
+            data_vals = self.data_weights * tiled
+            all_vals = np.concatenate([self.params, data_vals])
+
+            resolver = cirq.ParamResolver(
+                {s: v for s, v in zip(self.all_symbols, all_vals)}
+            )
+            resolved_ansatz = cirq.resolve_parameters(self.ansatz, resolver)
+
+            input_result = SIMULATOR.simulate(prep)
+            psi_input = input_result.final_state_vector
+
+            forward_circuit = prep + resolved_ansatz
+            forward_result = SIMULATOR.simulate(forward_circuit)
+            psi_encoded = forward_result.final_state_vector
+
+            state_tensor = psi_encoded.reshape([2] * n_qubits)
+
+            rho_full = np.outer(psi_encoded, np.conj(psi_encoded))
+            dim = 2 ** n_qubits
+            rho_full = rho_full.reshape([2] * (2 * n_qubits))
+
+            n_latent = NUM_LATENT_QUBITS
+            n_trash = NUM_TRASH_QUBITS
+
+            axes_order = trash_indices + latent_indices + \
+                         [idx + n_qubits for idx in trash_indices] + \
+                         [idx + n_qubits for idx in latent_indices]
+            rho_reordered = rho_full.transpose(axes_order)
+            rho_reordered = rho_reordered.reshape(
+                2**n_trash, 2**n_latent, 2**n_trash, 2**n_latent
+            )
+            rho_latent = np.trace(rho_reordered, axis1=0, axis2=2)
+
+            trash_zero = np.zeros((2**n_trash, 2**n_trash))
+            trash_zero[0, 0] = 1.0
+
+            rho_reconstructed = np.kron(trash_zero, rho_latent)
+
+            inverse_ansatz = cirq.inverse(resolved_ansatz)
+            inverse_circuit = cirq.Circuit(inverse_ansatz)
+            u_dag = cirq.unitary(inverse_circuit)
+
+            rho_output = u_dag @ rho_reconstructed @ u_dag.conj().T
+
+            fidelity = np.real(
+                np.conj(psi_input) @ rho_output @ psi_input
+            )
+            fidelities[i] = np.clip(fidelity, 0.0, 1.0)
+
+        return fidelities
 
     def save_params(self, path: str):
         """Save trained parameters and data weights to .npy files."""
