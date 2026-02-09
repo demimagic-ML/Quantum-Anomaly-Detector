@@ -14,6 +14,7 @@ import os
 import numpy as np
 import pandas as pd
 from typing import Tuple
+from sklearn.feature_selection import f_classif
 
 
 def load_creditcard_data(
@@ -64,17 +65,14 @@ def load_creditcard_data(
     labels_all = df["Class"].values
     features_df = df.drop(columns=["Class"])
 
-    normal_mask = labels_all == 0
-    fraud_mask = labels_all == 1
+    f_scores, p_values = f_classif(features_df.values, labels_all)
+    f_score_series = pd.Series(f_scores, index=features_df.columns)
+    top_features = f_score_series.sort_values(ascending=False).head(n_features).index.tolist()
 
-    mean_diff = np.abs(
-        features_df[normal_mask].mean() - features_df[fraud_mask].mean()
-    )
-    top_features = mean_diff.sort_values(ascending=False).head(n_features).index.tolist()
-
-    print(f"  Selected features (top {n_features} by class separation):")
+    print(f"  Selected features (top {n_features} by ANOVA F-score):")
     for feat in top_features:
-        print(f"    {feat}: Δmean = {mean_diff[feat]:.4f}")
+        idx = features_df.columns.get_loc(feat)
+        print(f"    {feat}: F={f_scores[idx]:.2f}, p={p_values[idx]:.2e}")
 
     X_all = features_df[top_features].values
     labels_all = labels_all.astype(int)

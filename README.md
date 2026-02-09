@@ -221,6 +221,56 @@ Trained on **800 normal** transactions, evaluated on **400 test** samples (200 n
 </p>
 <p align="center"><em>Training loss convergence over 20 epochs</em></p>
 
+### v2 — Enhanced Quantum Autoencoder (Updated)
+
+The following improvements were applied to the original architecture:
+
+1. **Enhanced ansatz** — Added $R_z(\phi)$ rotations alongside $R_y(\theta)$ for full single-qubit expressivity, plus circular CNOT entanglement (last qubit wraps back to first)
+2. **Data re-uploading** — Input features are re-encoded via $R_x(w_i \cdot x_i)$ at every ansatz layer with trainable scaling weights, enabling richer decision boundaries in Hilbert space
+3. **Adam optimizer** — Replaced vanilla SGD with Adam (momentum + adaptive learning rates) for more stable convergence
+4. **ANOVA F-score feature selection** — Replaced naive mean-difference ranking with `sklearn.feature_selection.f_classif`, selecting `V17`, `V14`, `V12`, `V10` as the statistically most discriminative PCA components
+
+Trained on **160 normal** transactions, evaluated on **90 test** samples (40 normal + 50 fraud). Features auto-selected by ANOVA F-score: `V17`, `V14`, `V12`, `V10`.
+
+| Metric | Value |
+|---|---|
+| **AUROC** | 0.8950 |
+| **F1 Score** | 0.9126 |
+| **Precision (Fraud)** | 0.89 |
+| **Recall (Fraud)** | 0.94 |
+| **Accuracy** | 0.90 |
+| **Mean Anomaly Score (Normal)** | 0.6277 |
+| **Mean Anomaly Score (Fraud)** | 0.9619 |
+| **Score Separation** | 0.3342 |
+| **Optimal Threshold** | 0.9112 |
+| **Ansatz Depth** | 3 |
+| **Trainable Parameters** | 44 (32 variational + 12 data weights) |
+| **Epochs** | 20 |
+
+```
+              precision    recall  f1-score   support
+
+      Normal       0.92      0.85      0.88        40
+       Fraud       0.89      0.94      0.91        50
+
+    accuracy                           0.90        90
+```
+
+#### v1 → v2 Comparison
+
+| Metric | v1 (Baseline) | v2 (Enhanced) | Δ Change |
+|---|---|---|---|
+| **AUROC** | 0.8575 | **0.8950** | +0.0375 (+4.4%) |
+| **F1 Score** | 0.7914 | **0.9126** | +0.1212 (+15.3%) |
+| **Precision (Fraud)** | 0.76 | **0.89** | +0.13 |
+| **Recall (Fraud)** | 0.82 | **0.94** | +0.12 |
+| **Accuracy** | 0.78 | **0.90** | +0.12 |
+| **Score Separation** | 0.2910 | **0.3342** | +0.0432 |
+| **Trainable Params** | 16 | **44** | +28 |
+| **Features** | Time, Amount, V3, V14 | **V17, V14, V12, V10** | ANOVA F-score |
+
+> The enhanced model achieves **AUROC 0.90** and **F1 0.91** — a significant improvement over v1 across all metrics. Fraud recall climbed to **94%** while maintaining **89% precision**, reducing both missed fraud and false alarms. The gains come primarily from data re-uploading and better feature selection, with only a modest increase in parameter count.
+
 ### Synthetic Data
 
 Synthetic data mode is available for quick testing and reproducibility without Kaggle credentials:
@@ -268,11 +318,11 @@ In financial fraud detection, false positives are expensive — every legitimate
 
 - **Scaling**: Current simulations are limited to small qubit counts (*n* < 20). Classical simulation of quantum circuits scales exponentially with qubit number, restricting practical experiments to shallow circuits on few qubits until real quantum hardware becomes more accessible.
 
-- **Data Re-uploading**: Experimenting with multi-layered data re-uploading strategies to improve expressivity in the feature map. By encoding classical data multiple times across circuit layers, the model can learn richer decision boundaries in Hilbert space.
+- ✅ **Data Re-uploading**: Implemented multi-layered data re-uploading with trainable scaling weights. Features are re-encoded via $R_x(w_i \cdot x_i)$ at every ansatz layer, enabling richer decision boundaries. Combined with enhanced ansatz ($R_y + R_z$ + circular entanglement) and Adam optimizer, this improved AUROC from 0.86 → **0.90** and F1 from 0.79 → **0.91**. See [v2 Results](#v2--enhanced-quantum-autoencoder-updated) above.
 
 - **Noise Simulation**: Adding a realistic noise model (depolarizing, amplitude damping) via `cirq.DensityMatrixSimulator` to evaluate how the autoencoder performs on actual NISQ hardware, where gate errors and decoherence degrade fidelity.
 
-- ✅ **Real-World Data**: Validated on the [Kaggle Credit Card Fraud](https://www.kaggle.com/mlg-ulb/creditcardfraud) benchmark (284,807 transactions). Achieved **AUROC 0.86** and **F1 0.79** with 82% fraud recall using only 4 qubits and 16 parameters. See [Results](#results) above.
+- ✅ **Real-World Data**: Validated on the [Kaggle Credit Card Fraud](https://www.kaggle.com/mlg-ulb/creditcardfraud) benchmark (284,807 transactions). v1 achieved **AUROC 0.86** and **F1 0.79**; v2 improved to **AUROC 0.90** and **F1 0.91** with 94% fraud recall using 4 qubits and 44 parameters. See [Results](#results) above.
 
 - **Hybrid Ensemble**: Combining the quantum anomaly score with a classical model (e.g., Isolation Forest) in an ensemble to reduce false positive rates while maintaining high recall.
 
